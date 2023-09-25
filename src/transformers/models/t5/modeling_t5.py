@@ -443,7 +443,7 @@ class T5Attention(nn.Module):
         relative_position = memory_position - context_position  # shape (query_length, key_length)
         relative_position_bucket = self._relative_position_bucket(
             relative_position,  # shape (query_length, key_length)
-            bidirectional=(not self.is_decoder),
+            bidirectional=True,
             num_buckets=self.relative_attention_num_buckets,
             max_distance=self.relative_attention_max_distance,
         )
@@ -2040,6 +2040,7 @@ class T5ForSequenceClassification(T5PreTrainedModel):
                     "`input_ids` or `decoder_input_ids` or `decoder_inputs_embeds`."
                 )
             decoder_input_ids = self._shift_right(input_ids)
+        decoder_input_ids = self._shift_right(decoder_input_ids)
 
         outputs = self.transformer(
             input_ids,
@@ -2059,12 +2060,9 @@ class T5ForSequenceClassification(T5PreTrainedModel):
         )
         sequence_output = outputs[0]
 
-        eos_mask = input_ids.eq(self.config.eos_token_id).to(sequence_output.device)
-
-        if len(torch.unique_consecutive(eos_mask.sum(1))) > 1:
-            raise ValueError("All examples must have the same number of <eos> tokens.")
         batch_size, _, hidden_size = sequence_output.shape
-        sentence_representation = sequence_output[eos_mask, :].view(batch_size, -1, hidden_size)[:, -1, :]
+
+        sentence_representation = sequence_output.view(batch_size, -1, hidden_size)[:, -1, :]
         logits = self.classification_head(sentence_representation)
 
         loss = None
